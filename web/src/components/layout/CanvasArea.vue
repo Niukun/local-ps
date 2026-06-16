@@ -8,7 +8,7 @@
     @drop.prevent="handleDrop"
     ref="canvasContainer"
   >
-    <!-- 空状态引导 -->
+    <!-- 绌虹姸鎬佸紩瀵?-->
     <div v-if="!hasActiveFile" class="canvas-empty">
       <div class="empty-guide">
         <svg class="empty-icon" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -16,20 +16,20 @@
           <circle cx="28" cy="24" r="6" />
           <path d="M8 44l12-10 8 6 12-10 16 14" />
         </svg>
-        <p class="empty-title">拖拽图片到此处打开</p>
-        <p class="empty-desc">支持 JPG、JPEG、PNG 格式，最大 50MB</p>
-        <button class="empty-btn" @click.stop="$emit('action', 'openFile')">选择文件</button>
+        <p class="empty-title">鎷栨嫿鍥剧墖鍒版澶勬墦寮€</p>
+        <p class="empty-desc">鏀寔 JPG銆丣PEG銆丳NG 鏍煎紡锛屾渶澶?50MB</p>
+        <button class="empty-btn" @click.stop="$emit('action', 'openFile')">閫夋嫨鏂囦欢</button>
       </div>
     </div>
 
-    <!-- Fabric.js 画布 -->
+    <!-- Fabric.js 鐢诲竷 -->
     <canvas
       v-show="hasActiveFile"
       ref="fabricCanvas"
       class="fabric-canvas"
     ></canvas>
 
-    <!-- 裁剪模式 HTML overlay：拦截所有鼠标事件，绕过 Fabric.js 事件系统 -->
+    <!-- 瑁佸壀妯″紡 HTML overlay锛氭嫤鎴墍鏈夐紶鏍囦簨浠讹紝缁曡繃 Fabric.js 浜嬩欢绯荤粺 -->
     <div
       v-if="hasActiveFile && interactionMode === 'crop'"
       class="crop-overlay"
@@ -40,10 +40,10 @@
       @dblclick.prevent="onCropDblClick"
     ></div>
 
-    <!-- 加载遮罩 -->
+    <!-- 鍔犺浇閬僵 -->
     <div v-if="loading" class="canvas-loading">
       <div class="loading-spinner"></div>
-      <span>加载中...</span>
+      <span>鍔犺浇涓?..</span>
     </div>
   </div>
 </template>
@@ -158,7 +158,7 @@ export default {
       return this.fabricCanvas.getPointer({ clientX: e.clientX, clientY: e.clientY })
     },
 
-    // ==================== 交互模式 ====================
+    // ==================== 浜や簰妯″紡 ====================
     exitOldMode(mode) {
       if (mode === 'crop') {
         this.clearCropUI()
@@ -225,7 +225,7 @@ export default {
       if (!canvas) return
       this.clearCropUI()
 
-      // 使用 vpt 计算当前视口范围，精确覆盖可见区域，避免图片漂移
+      // 浣跨敤 vpt 璁＄畻褰撳墠瑙嗗彛鑼冨洿锛岀簿纭鐩栧彲瑙佸尯鍩燂紝閬垮厤鍥剧墖婕傜Щ
       const vpt = canvas.viewportTransform
       const cw = canvas.getWidth()
       const ch = canvas.getHeight()
@@ -237,12 +237,13 @@ export default {
         fill: 'rgba(0,0,0,0.35)',
         selectable: false,
         evented: false,
+        objectCaching: false,
         excludeFromExport: true
       })
       canvas.add(this.cropMask)
     },
 
-    // ==================== 图片加载 ====================
+    // ==================== 鍥剧墖鍔犺浇 ====================
     loadImage(dataUrl) {
       if (!this.fabricCanvas) {
         this.$nextTick(() => {
@@ -276,7 +277,7 @@ export default {
       })
     },
 
-    // ==================== 缩放 ====================
+    // ==================== 缂╂斁 ====================
     doZoomIn() {
       return this.applyZoom(this.getCurrentZoom() + LIMITS.ZOOM_STEP)
     },
@@ -326,11 +327,11 @@ export default {
     rotateObject(angleDelta) {
       const obj = this.currentImage
       if (!obj) return
-      this.$emit('beforeOperation', { label: '旋转', type: 'rotate' })
+      this.$emit('beforeOperation', { label: '鏃嬭浆', type: 'rotate' })
       obj.rotate(obj.angle + angleDelta)
       obj.setCoords()
       this.fabricCanvas.renderAll()
-      this.$emit('operationRecorded', { label: '旋转 ' + angleDelta + '°', type: 'rotate' })
+      this.$emit('operationRecorded', { label: '鏃嬭浆 ' + angleDelta + '掳', type: 'rotate' })
     },
     rotateToAngle(angle) {
       const obj = this.currentImage
@@ -344,21 +345,21 @@ export default {
     doFlip(flipX, flipY) {
       const obj = this.currentImage
       if (!obj) return
-      this.$emit('beforeOperation', { label: flipX ? '水平翻转' : '垂直翻转', type: 'flip' })
+      this.$emit('beforeOperation', { label: flipX ? '姘村钩缈昏浆' : '鍨傜洿缈昏浆', type: 'flip' })
       obj.set({ flipX: !obj.flipX, flipY: !obj.flipY })
       obj.setCoords()
       this.fabricCanvas.renderAll()
-      this.$emit('operationRecorded', { label: flipX ? '水平翻转' : '垂直翻转', type: 'flip' })
+      this.$emit('operationRecorded', { label: flipX ? '姘村钩缈昏浆' : '鍨傜洿缈昏浆', type: 'flip' })
     },
 
-    // ==================== 裁剪 — HTML overlay 事件处理 ====================
+    // ==================== 裁剪 - HTML overlay 事件处理 ====================
     onCropMouseDown(e) {
       if (!this.fabricCanvas) return
       const pointer = this.getCanvasPointer(e)
       this.isCropping = true
       this.cropStartX = pointer.x
       this.cropStartY = pointer.y
-      // 清除旧裁剪框
+      // 娓呴櫎鏃ц鍓
       if (this.cropRect) {
         this.fabricCanvas.remove(this.cropRect)
         this.cropRect = null
@@ -382,7 +383,7 @@ export default {
       }
     },
 
-    // ==================== 裁剪 — 绘制逻辑 ====================
+    // ==================== 裁剪 - 绘制逻辑 ====================
     startCrop() {
       this.isCropping = false
       this.cropApplied = false
@@ -402,7 +403,7 @@ export default {
       let width = Math.abs(x2 - x1)
       let height = Math.abs(y2 - y1)
 
-      // 固定比例约束
+      // 鍥哄畾姣斾緥绾︽潫
       if (this.cropMode === 'ratio' && this.cropRatio) {
         const [rw, rh] = this.cropRatio.split(':').map(Number)
         const ratio = rw / rh
@@ -410,13 +411,13 @@ export default {
         else height = width / ratio
       }
 
-      // 重新创建遮罩（4 块矩形围住裁剪区，中间镂空）
+      // 重新创建遮罩（4块矩形围住裁剪区，中间镂空）
       if (this.cropMask) canvas.remove(this.cropMask)
 
       const mk = (lx, ly, lw, lh) => new fabric.Rect({
         left: lx, top: ly, width: lw, height: lh,
         fill: 'rgba(0,0,0,0.35)',
-        selectable: false, evented: false
+        selectable: false, evented: false, objectCaching: false
       })
       const cw = canvas.getWidth()
       const ch = canvas.getHeight()
@@ -427,32 +428,17 @@ export default {
         mk(-999, top, left + 999, height),
         mk(right, top, 9999, height),
         mk(-999, bottom, 9999, 9999)
-      ], { selectable: false, evented: false })
+      ], { selectable: false, evented: false, objectCaching: false })
 
-      // 裁剪框 — 三层叠加提升视觉对比度
       if (this.cropRect) canvas.remove(this.cropRect)
-      // 外层：白色包边（比内层大4px，形成光晕效果）
-      const outer = new fabric.Rect({
-        left: left - 2, top: top - 2,
-        width: width + 4, height: height + 4,
-        fill: 'transparent',
-        stroke: 'rgba(255,255,255,0.7)',
-        strokeWidth: 4,
-        selectable: false, evented: false,
-        hasControls: false, hasBorders: false
-      })
-      // 内层：蓝色虚线框
-      const inner = new fabric.Rect({
+      this.cropRect = new fabric.Rect({
         left, top, width, height,
         fill: 'transparent',
         stroke: '#1890ff',
-        strokeWidth: 2.5,
-        strokeDashArray: [8, 4],
+        strokeWidth: 2,
         selectable: false, evented: false,
+        objectCaching: false,
         hasControls: false, hasBorders: false
-      })
-      this.cropRect = new fabric.Group([outer, inner], {
-        selectable: false, evented: false
       })
 
       canvas.add(this.cropMask)
@@ -470,13 +456,13 @@ export default {
       const cropWidth = rect.getScaledWidth()
       const cropHeight = rect.getScaledHeight()
 
-      // 先清除遮罩，露出干净原图
+      // 鍏堟竻闄ら伄缃╋紝闇插嚭骞插噣鍘熷浘
       this.clearCropUI()
 
-      // 保存干净状态用于撤销
-      this.$emit('beforeOperation', { label: '裁剪', type: 'crop' })
+      // 淇濆瓨骞插噣鐘舵€佺敤浜庢挙閿€
+      this.$emit('beforeOperation', { label: '瑁佸壀', type: 'crop' })
 
-      // 提取裁剪区域
+      // 鎻愬彇瑁佸壀鍖哄煙
       const dataUrl = canvas.toDataURL({
         format: 'png',
         left: cropLeft, top: cropTop,
@@ -484,10 +470,9 @@ export default {
       })
 
       // 恢复并加载裁剪结果
-      this.restoreObjectsInteractive()
       this.loadImage(dataUrl)
       this.cropApplied = true
-      this.$emit('operationRecorded', { label: '裁剪', type: 'crop' })
+      this.$emit('operationRecorded', { label: '瑁佸壀', type: 'crop' })
       this.$emit('cropComplete')
     },
 
@@ -507,7 +492,7 @@ export default {
       canvas.renderAll()
     },
 
-    // ==================== Fabric.js 事件（非裁剪模式用） ====================
+    // ==================== Fabric.js 浜嬩欢锛堥潪瑁佸壀妯″紡鐢級 ====================
     onFabricMouseMove(opt) {
       const pointer = this.fabricCanvas.getPointer(opt.e)
       this.$emit('mouseMoved', { x: pointer.x, y: pointer.y })
@@ -551,7 +536,7 @@ export default {
       this.$emit('zoomChanged', Math.round(clamped * 100))
     },
 
-    // ==================== 外部调用 ====================
+    // ==================== 澶栭儴璋冪敤 ====================
     getCanvasJSON() {
       return this.fabricCanvas ? JSON.stringify(this.fabricCanvas.toJSON()) : null
     },
@@ -574,7 +559,7 @@ export default {
       return this.fabricCanvas.toDataURL({ format, quality, multiplier: 1 })
     },
 
-    // ==================== 拖拽上传 ====================
+    // ==================== 鎷栨嫿涓婁紶 ====================
     handleDragOver(e) {
       this.isDragOver = true
       e.dataTransfer.dropEffect = 'copy'
