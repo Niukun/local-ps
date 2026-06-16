@@ -62,7 +62,7 @@ const mutations = {
     // 清除指针之后的已撤销记录
     fileStack.stack = fileStack.stack.slice(0, fileStack.pointer)
 
-    // 添� 操作记录
+    // 添加操作记录
     fileStack.stack.push({
       ...operation,
       timestamp: Date.now()
