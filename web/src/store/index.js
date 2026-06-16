@@ -1,15 +1,17 @@
 import Vue from 'vue'
 import Vuex from 'vuex'
-import image from './modules/image'
-import tool from './modules/tool'
+import fileList from './modules/fileList'
+import canvas from './modules/canvas'
 import history from './modules/history'
+import tools from './modules/tools'
 
 Vue.use(Vuex)
 
 export default new Vuex.Store({
   modules: {
-    image,
-    tool,
-    history
+    fileList,
+    canvas,
+    history,
+    tools
   }
 })

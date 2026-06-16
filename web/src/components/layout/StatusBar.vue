@@ -1,67 +1,79 @@
 <template>
+  <!-- 底部状态栏：28px -->
   <div class="status-bar">
-    <div class="status-left">
-      <div class="status-item">
-        <span>缩放: {{ zoom }}%</span>
-      </div>
-      <div class="status-item">
-        <span>尺寸: {{ imageSize.width }} × {{ imageSize.height }}</span>
-      </div>
-    </div>
-    <div class="status-right">
-      <div class="status-item">
-        <span>格式: {{ imageFormat }}</span>
-      </div>
-      <div class="status-item">
-        <span>就绪</span>
-      </div>
-    </div>
+    <span class="status-item status-text">{{ statusText }}</span>
+    <span class="status-spacer"></span>
+    <span class="status-item">缩放：{{ zoomText }}</span>
+    <span class="status-divider">|</span>
+    <span class="status-item">鼠标：{{ mouseText }}</span>
+    <span class="status-divider">|</span>
+    <span class="status-item">文件：{{ fileIndexText }}</span>
+    <span class="status-divider">|</span>
+    <span class="status-item">历史：{{ historyStep }}/20</span>
   </div>
 </template>
 
 <script>
-import { mapState } from 'vuex'
-
 export default {
   name: 'StatusBar',
-  computed: {
-    ...mapState('image', ['zoom', 'imageInfo']),
-    imageSize() {
-      return {
-        width: this.imageInfo.width || 0,
-        height: this.imageInfo.height || 0
-      }
+
+  props: {
+    statusText: {
+      type: String,
+      default: '就绪'
     },
-    imageFormat() {
-      const type = this.imageInfo.type || ''
-      return type.split('/')[1]?.toUpperCase() || '未知'
+
+    zoomText: {
+      type: String,
+      default: '100%'
+    },
+
+    mouseText: {
+      type: String,
+      default: '(0, 0)'
+    },
+
+    fileIndexText: {
+      type: String,
+      default: '0/0'
+    },
+
+    historyStep: {
+      type: Number,
+      default: 0
     }
   }
 }
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .status-bar {
+  display: flex;
+  align-items: center;
   height: 28px;
-  background-color: #16213e;
-  border-top: 1px solid #0f3460;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  min-height: 28px;
   padding: 0 12px;
+  background-color: #2c2c2c;
+  border-top: 1px solid #1a1a1a;
+  color: #aaa;
   font-size: 12px;
-  color: #888;
-}
+  flex-shrink: 0;
 
-.status-left, .status-right {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
+  .status-item {
+    white-space: nowrap;
+  }
 
-.status-item {
-  display: flex;
-  align-items: center;
-  gap: 4px;
+  .status-spacer {
+    flex: 1;
+  }
+
+  .status-text {
+    color: #fff;
+  }
+
+  .status-divider {
+    margin: 0 6px;
+    color: #555;
+  }
 }
 </style>

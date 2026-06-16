@@ -1,152 +1,269 @@
 <template>
-  <div id="app">
-    <div class="menu-bar-container">
-      <MenuBar />
-    </div>
-    <div class="main-container">
-      <Sidebar />
-      <div class="preview-area">
-        <div class="canvas-container">
-          <div class="canvas-placeholder" v-if="!currentImage">
-            <svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
-            <p>拖拽图片到此处打开</p>
-            <p class="hint">支持 JPG、PNG 格式，最大 50MB</p>
-          </div>
-          <canvas ref="mainCanvas" v-show="currentImage"></canvas>
-        </div>
-      </div>
-      <PropertiesPanel />
-    </div>
-    <div class="status-bar-container">
-      <StatusBar />
-    </div>
+  <div id="app-container">
+    <router-view />
   </div>
 </template>
 
 <script>
-import { mapState } from 'vuex'
-import MenuBar from './components/layout/MenuBar.vue'
-import Sidebar from './components/layout/Sidebar.vue'
-import StatusBar from './components/layout/StatusBar.vue'
-import PropertiesPanel from './components/layout/PropertiesPanel.vue'
-
 export default {
-  name: 'App',
-  components: {
-    MenuBar,
-    Sidebar,
-    StatusBar,
-    PropertiesPanel
-  },
-  computed: {
-    ...mapState('image', ['currentImage'])
-  },
-  mounted() {
-    this.setupDragAndDrop()
-  },
-  methods: {
-    setupDragAndDrop() {
-      const previewArea = document.querySelector('.preview-area')
-      if (previewArea) {
-        previewArea.addEventListener('dragover', (e) => {
-          e.preventDefault()
-          e.stopPropagation()
-        })
-        previewArea.addEventListener('drop', (e) => {
-          e.preventDefault()
-          e.stopPropagation()
-          const files = e.dataTransfer.files
-          if (files.length > 0) {
-            const file = files[0]
-            if (file.type === 'image/jpeg' || file.type === 'image/png') {
-              this.$store.dispatch('image/loadImage', file)
-            }
-          }
-        })
-      }
-    }
-  }
+  name: 'App'
 }
 </script>
 
-<style>
+<style lang="scss">
+/* ===== 全局样式 ===== */
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
-body {
-  font-family: 'Microsoft YaHei', Arial, sans-serif;
-  background-color: #1a1a2e;
-  color: #eaeaea;
-  overflow: hidden;
-  height: 100vh;
-}
-
-#app {
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
-
-.menu-bar-container {
-  height: 36px;
-  flex-shrink: 0;
-}
-
-.main-container {
-  flex: 1;
-  display: flex;
-  overflow: hidden;
-}
-
-.preview-area {
-  flex: 1;
-  background-color: #1a1a2e;
-  position: relative;
-  overflow: hidden;
-}
-
-.canvas-container {
+html,
+body,
+#app,
+#app-container {
   width: 100%;
   height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  overflow: hidden;
 }
 
-.canvas-placeholder {
-  width: 80%;
-  height: 80%;
-  border: 2px dashed #0f3460;
-  border-radius: 8px;
+body {
+  font-family: "Microsoft YaHei", "微软雅黑", "PingFang SC", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  color: #333;
+  background-color: #fff;
+}
+
+/* ===== 滚动条美化 ===== */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #ccc;
+  border-radius: 3px;
+
+  &:hover {
+    background-color: #aaa;
+  }
+}
+
+/* ===== 对话框公共样式 ===== */
+.dialog-overlay {
+  position: fixed;
+  inset: 0;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
+  background-color: rgba(0, 0, 0, 0.4);
+  z-index: 1000;
+}
+
+.dialog-box {
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+  animation: dialogIn 0.2s ease-out;
+}
+
+@keyframes dialogIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid #f0f0f0;
+
+  h3 {
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+  }
+
+  .dialog-close {
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: #999;
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &:hover {
+      background-color: #f5f5f5;
+      color: #333;
+    }
+  }
+}
+
+.dialog-body {
+  padding: 20px;
+}
+
+.dialog-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 20px;
+  border-top: 1px solid #f0f0f0;
+  background-color: #fafafa;
+}
+
+/* ===== 表单控件公共样式 ===== */
+.form-item {
+  margin-bottom: 16px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  color: #666;
+  font-weight: 500;
+}
+
+.form-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  font-size: 14px;
+  color: #333;
+  transition: border-color 0.15s;
+  outline: none;
+
+  &:focus {
+    border-color: #1890ff;
+    box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.1);
+  }
+}
+
+.form-select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  font-size: 14px;
+  color: #333;
+  background-color: #fff;
+  cursor: pointer;
+  outline: none;
+
+  &:focus {
+    border-color: #1890ff;
+    box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.1);
+  }
+}
+
+.form-range {
+  width: 100%;
+  height: 4px;
+  appearance: none;
+  background: #e0e0e0;
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+
+  &::-webkit-slider-thumb {
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #1890ff;
+    cursor: pointer;
+  }
+}
+
+.form-hint {
+  padding: 8px 12px;
+  background-color: #f6ffed;
+  border: 1px solid #b7eb8f;
+  border-radius: 4px;
+  font-size: 13px;
   color: #666;
 }
 
-.canvas-placeholder svg {
-  width: 64px;
-  height: 64px;
-  fill: #0f3460;
-  margin-bottom: 16px;
+.quality-value {
+  color: #1890ff;
+  font-weight: 600;
 }
 
-.canvas-placeholder p {
+.range-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  .range-label {
+    font-size: 12px;
+    color: #999;
+    flex-shrink: 0;
+  }
+
+  .form-range {
+    flex: 1;
+  }
+}
+
+/* ===== 按钮公共样式 ===== */
+.btn {
+  padding: 7px 20px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
   font-size: 14px;
-  margin-bottom: 8px;
-}
+  cursor: pointer;
+  transition: all 0.15s;
+  outline: none;
 
-.canvas-placeholder .hint {
-  font-size: 12px;
-  color: #555;
-}
+  &.btn-primary {
+    background-color: #1890ff;
+    border-color: #1890ff;
+    color: #fff;
 
-.status-bar-container {
-  height: 28px;
-  flex-shrink: 0;
+    &:hover {
+      background-color: #40a9ff;
+      border-color: #40a9ff;
+    }
+
+    &:disabled {
+      background-color: #b0d4ff;
+      border-color: #b0d4ff;
+      cursor: not-allowed;
+    }
+  }
+
+  &.btn-cancel {
+    background-color: #fff;
+    color: #666;
+
+    &:hover {
+      color: #1890ff;
+      border-color: #1890ff;
+    }
+  }
 }
 </style>

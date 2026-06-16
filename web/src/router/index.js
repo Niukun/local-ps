@@ -1,17 +1,19 @@
 import Vue from 'vue'
 import VueRouter from 'vue-router'
+import MainEditor from '@/views/MainEditor.vue'
 
 Vue.use(VueRouter)
 
 const routes = [
   {
     path: '/',
-    name: 'Home',
-    component: () => import('../views/Home.vue')
+    name: 'MainEditor',
+    component: MainEditor
   }
 ]
 
 const router = new VueRouter({
+  mode: 'hash',
   routes
 })
 
