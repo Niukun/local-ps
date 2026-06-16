@@ -38,6 +38,8 @@
             @operationRecorded="handleOperationRecorded"
             @cropComplete="handleCropComplete"
             @cropCancelled="handleCropCancelled"
+            @deskewApplied="handleDeskewApplied"
+            @deblackApplied="handleDeblackApplied"
           />
           <PropertyPanel
             :fileInfo="activeFile"
@@ -81,6 +83,54 @@
             <input v-model.number="rotateAngleInput" type="range" class="props-range" min="-360" max="360" step="0.1" @input="onRotatePreview" />
             <button class="props-btn props-btn-apply" @click="applyRotate">应用</button>
             <button class="props-btn" @click="resetRotate">重置</button>
+          </template>
+
+          <!-- ===== 纠偏参数 ===== -->
+          <template v-if="activeTool === 'correction'">
+            <label class="props-label">检测角度</label>
+            <span class="props-value">{{ correctionAngle.toFixed(1) }}°</span>
+            <label class="props-label">灵敏度</label>
+            <input v-model.number="correctionSensitivity" type="range" class="props-range" min="1" max="10" step="1" @input="onCorrectionSensitivityChange" />
+            <span class="props-value">{{ correctionSensitivity }}</span>
+            <label class="props-label">微调</label>
+            <button class="props-btn" @click="adjustCorrectionAngle(-1)">-1°</button>
+            <button class="props-btn" @click="adjustCorrectionAngle(-0.1)">-0.1°</button>
+            <button class="props-btn" @click="adjustCorrectionAngle(0.1)">+0.1°</button>
+            <button class="props-btn" @click="adjustCorrectionAngle(1)">+1°</button>
+            <button class="props-btn props-btn-apply" @click="applyDeskew">应用纠偏</button>
+          </template>
+
+          <!-- ===== 去黑孔参数 ===== -->
+          <template v-if="activeTool === 'deblack'">
+            <label class="props-label">模式</label>
+            <label class="props-check"><input type="checkbox" v-model="deblackEdge" @change="onDeblackParamChange" />去黑边</label>
+            <label class="props-check"><input type="checkbox" v-model="deblackHole" @change="onDeblackParamChange" />去装订孔</label>
+            <label class="props-label">灵敏度</label>
+            <input v-model.number="deblackSensitivity" type="range" class="props-range" min="1" max="10" step="1" @input="onDeblackParamChange" />
+            <span class="props-value">{{ deblackSensitivity }}</span>
+            <label class="props-label">填充色</label>
+            <input type="color" v-model="deblackFillColor" class="props-color" @input="onDeblackParamChange" />
+            <label class="props-check"><input type="checkbox" v-model="deblackManual" @change="onDeblackManualChange" />手动框选</label>
+            <button class="props-btn" @click="previewDeblack">预览</button>
+            <button class="props-btn props-btn-apply" @click="applyDeblack">应用</button>
+            <button class="props-btn" @click="cancelDeblack">取消</button>
+          </template>
+
+          <!-- ===== 色彩调整参数 ===== -->
+          <template v-if="activeTool === 'colorAdjust'">
+            <label class="props-label">亮度</label>
+            <input v-model.number="colorBrightness" type="range" class="props-range" min="-100" max="100" step="1" @input="onColorParamChange" />
+            <input v-model.number="colorBrightness" type="number" class="props-input props-input-num" min="-100" max="100" @input="onColorParamChange" />
+            <label class="props-label">对比度</label>
+            <input v-model.number="colorContrast" type="range" class="props-range" min="-100" max="100" step="1" @input="onColorParamChange" />
+            <input v-model.number="colorContrast" type="number" class="props-input props-input-num" min="-100" max="100" @input="onColorParamChange" />
+            <label class="props-label">饱和度</label>
+            <input v-model.number="colorSaturation" type="range" class="props-range" min="-100" max="100" step="1" @input="onColorParamChange" />
+            <input v-model.number="colorSaturation" type="number" class="props-input props-input-num" min="-100" max="100" @input="onColorParamChange" />
+            <label class="props-label">色温</label>
+            <input v-model.number="colorTemperature" type="range" class="props-range" min="-100" max="100" step="1" @input="onColorParamChange" />
+            <input v-model.number="colorTemperature" type="number" class="props-input props-input-num" min="-100" max="100" @input="onColorParamChange" />
+            <button class="props-btn" @click="resetColorAdjust">重置</button>
           </template>
         </div>
       </div>
@@ -151,6 +201,8 @@ import {
 } from '@/utils/fileUtils'
 import { ERROR_MSG, LIMITS } from '@/utils/constants'
 import { normalizeKeyEvent, isInputFocused, findShortcut } from '@/utils/shortcuts'
+import { buildFilterString } from '@/utils/colorFilter'
+import { detectSkewAngle } from '@/utils/deskewUtils'
 
 export default {
   name: 'MainEditor',
@@ -196,7 +248,11 @@ export default {
   computed: {
     ...mapState('fileList', ['files', 'activeFileId']),
     ...mapState('canvas', ['zoom', 'mouseX', 'mouseY']),
-    ...mapState('tools', ['activeTool', 'rotationAngle']),
+    ...mapState('tools', ['activeTool', 'rotationAngle',
+      'correctionSensitivity', 'correctionAngle',
+      'deblackEdge', 'deblackHole', 'deblackSensitivity', 'deblackFillColor', 'deblackManual',
+      'colorBrightness', 'colorContrast', 'colorSaturation', 'colorTemperature'
+    ]),
     ...mapGetters('fileList', ['activeFile', 'fileCount', 'activeFileIndex', 'hasActiveFile']),
     ...mapGetters('canvas', ['zoomText', 'mouseText']),
     ...mapGetters('history', ['historyList', 'historyStep', 'canUndo', 'canRedo']),
@@ -213,12 +269,14 @@ export default {
     defaultPanelTab() { return this.hasActiveFile ? 'image' : 'image' },
 
     showToolBar() {
-      return this.hasActiveFile && (this.activeTool === 'crop' || this.activeTool === 'rotate')
+      return this.hasActiveFile && (this.activeTool === 'crop' || this.activeTool === 'rotate'
+        || this.activeTool === 'correction' || this.activeTool === 'deblack' || this.activeTool === 'colorAdjust')
     },
 
     activeInteractionMode() {
       if (this.activeTool === 'move') return 'move'
       if (this.activeTool === 'crop') return 'crop'
+      if (this.activeTool === 'deblack' && this.deblackManual) return 'deblack'
       return 'select'
     },
 
@@ -246,7 +304,12 @@ export default {
     ...mapActions('history', ['initStack', 'recordOperation', 'undo', 'redo']),
     ...mapActions('tools', ['switchTool']),
     ...mapMutations('canvas', ['SET_ZOOM', 'SET_MOUSE_POS']),
-    ...mapMutations('tools', ['SET_ROTATION_ANGLE', 'RESET_TOOL_PARAMS']),
+    ...mapMutations('tools', ['SET_ROTATION_ANGLE', 'RESET_TOOL_PARAMS',
+      'SET_CORRECTION_SENSITIVITY', 'SET_CORRECTION_ANGLE',
+      'SET_DEBLACK_EDGE', 'SET_DEBLACK_HOLE', 'SET_DEBLACK_SENSITIVITY',
+      'SET_DEBLACK_FILL_COLOR', 'SET_DEBLACK_MANUAL',
+      'SET_COLOR_BRIGHTNESS', 'SET_COLOR_CONTRAST', 'SET_COLOR_SATURATION', 'SET_COLOR_TEMPERATURE'
+    ]),
 
     // ===== 通知 =====
     notify(message, type = 'info') {
@@ -447,6 +510,139 @@ export default {
       this.switchTool('select')
     },
 
+    // ===== 纠偏 =====
+    onCorrectionSensitivityChange() {
+      this.SET_CORRECTION_SENSITIVITY(this.correctionSensitivity)
+      const canvasArea = this.$refs.canvasArea
+      if (!canvasArea || !canvasArea.fabricCanvas) return
+      const activeObj = canvasArea.currentImage
+      if (!activeObj) return
+
+      const dataUrl = canvasArea.fabricCanvas.toDataURL({ format: 'png', multiplier: 1 })
+      const img = new Image()
+      img.onload = () => {
+        const offCanvas = document.createElement('canvas')
+        offCanvas.width = img.width
+        offCanvas.height = img.height
+        const ctx = offCanvas.getContext('2d')
+        ctx.drawImage(img, 0, 0)
+        const imageData = ctx.getImageData(0, 0, img.width, img.height)
+        const angle = detectSkewAngle(imageData, this.correctionSensitivity)
+        this.SET_CORRECTION_ANGLE(angle)
+        this.$refs.canvasArea.showCorrectionGuide(angle)
+      }
+      img.src = dataUrl
+    },
+
+    adjustCorrectionAngle(delta) {
+      let angle = this.correctionAngle + delta
+      angle = Math.max(-45, Math.min(45, angle))
+      this.SET_CORRECTION_ANGLE(angle)
+      this.$refs.canvasArea.showCorrectionGuide(angle)
+    },
+
+    applyDeskew() {
+      const canvasArea = this.$refs.canvasArea
+      if (!canvasArea || !this.correctionAngle) return
+      this.handleBeforeOperation({ label: `纠偏 ${this.correctionAngle.toFixed(1)}°`, type: 'correction' })
+      canvasArea.applyDeskew(this.correctionAngle)
+    },
+
+    handleDeskewApplied() {
+      this.handleOperationRecorded({ label: `纠偏 ${this.correctionAngle.toFixed(1)}°`, type: 'correction' })
+      this.SET_CORRECTION_ANGLE(0)
+      this.switchTool('select')
+      this.appStatus = '纠偏完成'
+    },
+
+    // ===== 去黑孔 =====
+    onDeblackParamChange() {
+      this.SET_DEBLACK_EDGE(this.deblackEdge)
+      this.SET_DEBLACK_HOLE(this.deblackHole)
+      this.SET_DEBLACK_SENSITIVITY(this.deblackSensitivity)
+      this.SET_DEBLACK_FILL_COLOR(this.deblackFillColor)
+    },
+
+    onDeblackManualChange() {
+      this.SET_DEBLACK_MANUAL(this.deblackManual)
+    },
+
+    previewDeblack() {
+      const canvasArea = this.$refs.canvasArea
+      if (!canvasArea) return
+      canvasArea.previewDeblack({
+        edge: this.deblackEdge,
+        hole: this.deblackHole,
+        sensitivity: this.deblackSensitivity,
+        fillColor: this.deblackFillColor
+      })
+    },
+
+    applyDeblack() {
+      const canvasArea = this.$refs.canvasArea
+      if (!canvasArea) return
+      this.handleBeforeOperation({ label: '去黑孔', type: 'deblack' })
+      canvasArea.applyDeblack({
+        edge: this.deblackEdge,
+        hole: this.deblackHole,
+        sensitivity: this.deblackSensitivity,
+        fillColor: this.deblackFillColor
+      })
+    },
+
+    handleDeblackApplied() {
+      this.handleOperationRecorded({ label: '去黑孔', type: 'deblack' })
+      this.switchTool('select')
+      this.appStatus = '去黑孔完成'
+    },
+
+    cancelDeblack() {
+      const canvasArea = this.$refs.canvasArea
+      if (!canvasArea) return
+      canvasArea.cancelDeblack()
+      this.switchTool('select')
+    },
+
+    // ===== 色彩调整 =====
+    onColorParamChange() {
+      this.SET_COLOR_BRIGHTNESS(this.colorBrightness)
+      this.SET_COLOR_CONTRAST(this.colorContrast)
+      this.SET_COLOR_SATURATION(this.colorSaturation)
+      this.SET_COLOR_TEMPERATURE(this.colorTemperature)
+
+      const canvasArea = this.$refs.canvasArea
+      if (!canvasArea) return
+      const filter = buildFilterString({
+        brightness: this.colorBrightness,
+        contrast: this.colorContrast,
+        saturation: this.colorSaturation,
+        temperature: this.colorTemperature
+      })
+      canvasArea.applyColorFilter(filter)
+    },
+
+    resetColorAdjust() {
+      this.SET_COLOR_BRIGHTNESS(0)
+      this.SET_COLOR_CONTRAST(0)
+      this.SET_COLOR_SATURATION(0)
+      this.SET_COLOR_TEMPERATURE(0)
+
+      const canvasArea = this.$refs.canvasArea
+      if (canvasArea) {
+        canvasArea.applyColorFilter('')
+      }
+    },
+
+    handleBakeColorFilter() {
+      const canvasArea = this.$refs.canvasArea
+      if (!canvasArea) return
+      this.handleBeforeOperation({ label: '色彩调整', type: 'colorAdjust' })
+      canvasArea.bakeColorFilter()
+      this.handleOperationRecorded({ label: '色彩调整', type: 'colorAdjust' })
+      this.resetColorAdjust()
+      this.switchTool('select')
+    },
+
     // ===== 菜单响应 =====
     handleMenuAction(action) {
       switch (action) {
@@ -466,6 +662,9 @@ export default {
         case 'rotateTool': this.handleSwitchTool('rotate'); break
         case 'escape':
           if (this.activeTool === 'crop') this.cancelCrop()
+          else if (this.activeTool === 'correction') this.switchTool('select')
+          else if (this.activeTool === 'deblack') this.cancelDeblack()
+          else if (this.activeTool === 'colorAdjust') this.handleBakeColorFilter()
           else this.handleSwitchTool('select')
           break
         default: break
@@ -483,8 +682,23 @@ export default {
       this.switchTool(tool)
 
       const canvasArea = this.$refs.canvasArea
-      if (canvasArea && tool === 'crop') {
+      if (!canvasArea || !this.hasActiveFile) return
+
+      if (tool === 'crop') {
         this.$nextTick(() => canvasArea.startCrop())
+      } else if (tool === 'correction') {
+        this.$nextTick(() => this.onCorrectionSensitivityChange())
+      } else if (tool === 'colorAdjust') {
+        this.SET_CORRECTION_ANGLE(0)
+        this.$nextTick(() => this.onColorParamChange())
+      } else if (tool === 'deblack') {
+        this.$nextTick(() => canvasArea.clearDeblackOverlay())
+      } else {
+        // 切换到非 filter 工具时，bake 并固化色彩调整效果
+        canvasArea.bakeColorFilter()
+        canvasArea.applyColorFilter('')
+        canvasArea.clearDeblackOverlay()
+        this.resetColorAdjust()
       }
     },
 
@@ -746,6 +960,35 @@ export default {
       white-space: nowrap;
     }
 
+    .props-value {
+      font-size: 13px;
+      color: #333;
+      font-weight: 500;
+      min-width: 36px;
+    }
+
+    .props-check {
+      font-size: 12px;
+      color: #666;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+    }
+
+    .props-color {
+      width: 28px;
+      height: 28px;
+      border: 1px solid #d9d9d9;
+      border-radius: 3px;
+      cursor: pointer;
+      padding: 0;
+      background: none;
+
+      &::-webkit-color-swatch-wrapper { padding: 2px; }
+      &::-webkit-color-swatch { border: none; border-radius: 2px; }
+    }
+
     .props-select {
       padding: 4px 8px;
       border: 1px solid #d9d9d9;
@@ -770,6 +1013,10 @@ export default {
 
       &:focus {
         border-color: #1890ff;
+      }
+
+      &.props-input-num {
+        width: 50px;
       }
     }
 

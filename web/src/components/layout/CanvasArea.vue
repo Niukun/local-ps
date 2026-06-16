@@ -31,13 +31,13 @@
 
     <!-- 裁剪模式 HTML overlay：拦截所有鼠标事件，绕过 Fabric.js 事件系统 -->
     <div
-      v-if="hasActiveFile && interactionMode === 'crop'"
+      v-if="hasActiveFile && (interactionMode === 'crop' || interactionMode === 'deblack')"
       class="crop-overlay"
       ref="cropOverlay"
-      @mousedown.prevent="onCropMouseDown"
-      @mousemove.prevent="onCropMouseMove"
-      @mouseup.prevent="onCropMouseUp"
-      @dblclick.prevent="onCropDblClick"
+      @mousedown.prevent="onOverlayMouseDown"
+      @mousemove.prevent="onOverlayMouseMove"
+      @mouseup.prevent="onOverlayMouseUp"
+      @dblclick.prevent="onOverlayDblClick"
     ></div>
 
     <!-- 加载遮罩 -->
@@ -51,6 +51,8 @@
 <script>
 import { fabric } from 'fabric'
 import { LIMITS } from '@/utils/constants'
+import { detectBlackEdges, detectBindingHoles, calculateFillColor, applyDeblack as applyDeblackToImageData } from '@/utils/deblackUtils'
+import { detectSkewAngle, createDeskewedImageData } from '@/utils/deskewUtils'
 
 export default {
   name: 'CanvasArea',
@@ -80,7 +82,17 @@ export default {
       cropStartY: 0,
       cropRect: null,
       cropMask: null,
-      cropApplied: false
+      cropApplied: false,
+
+      // ===== 纠偏 =====
+      correctionGuide: null,
+
+      // ===== 去黑孔手动模式 =====
+      isDeblacking: false,
+      deblackStartX: 0,
+      deblackStartY: 0,
+      deblackRects: [],
+      deblackPreviewOverlay: null
     }
   },
 
@@ -164,6 +176,9 @@ export default {
         this.clearCropUI()
         this.restoreObjectsInteractive()
       }
+      if (mode === 'deblack') {
+        this.clearDeblackSelection()
+      }
       if (mode === 'move') {
         this.isPanning = false
       }
@@ -194,6 +209,13 @@ export default {
           canvas.discardActiveObject()
           this.disableObjectsInteractive()
           this.createInitialCropMask()
+          canvas.renderAll()
+          break
+        case 'deblack':
+          canvas.selection = false
+          canvas.defaultCursor = 'crosshair'
+          canvas.hoverCursor = 'crosshair'
+          canvas.discardActiveObject()
           canvas.renderAll()
           break
       }
@@ -353,6 +375,36 @@ export default {
     },
 
     // ==================== 裁剪 - HTML overlay 事件处理 ====================
+    onOverlayMouseDown(e) {
+      if (this.interactionMode === 'crop') {
+        this.onCropMouseDown(e)
+      } else if (this.interactionMode === 'deblack') {
+        this.onDeblackOverlayMouseDown(e)
+      }
+    },
+
+    onOverlayMouseMove(e) {
+      if (this.interactionMode === 'crop') {
+        this.onCropMouseMove(e)
+      } else if (this.interactionMode === 'deblack') {
+        this.onDeblackOverlayMouseMove(e)
+      }
+    },
+
+    onOverlayMouseUp() {
+      if (this.interactionMode === 'crop') {
+        this.onCropMouseUp()
+      } else if (this.interactionMode === 'deblack') {
+        this.onDeblackOverlayMouseUp()
+      }
+    },
+
+    onOverlayDblClick() {
+      if (this.interactionMode === 'crop') {
+        this.onCropDblClick()
+      }
+    },
+
     onCropMouseDown(e) {
       if (!this.fabricCanvas) return
       const pointer = this.getCanvasPointer(e)
@@ -490,6 +542,258 @@ export default {
       if (this.cropMask) { canvas.remove(this.cropMask); this.cropMask = null }
       if (this.cropRect) { canvas.remove(this.cropRect); this.cropRect = null }
       canvas.renderAll()
+    },
+
+    // ==================== 纠偏 ====================
+    showCorrectionGuide(angle) {
+      const canvas = this.fabricCanvas
+      if (!canvas) return
+      if (this.correctionGuide) canvas.remove(this.correctionGuide)
+
+      const rad = (angle * Math.PI) / 180
+      const cw = canvas.getWidth()
+      const ch = canvas.getHeight()
+      const cx = cw / 2
+      const cy = ch / 2
+      const len = Math.max(cw, ch)
+      const x1 = cx - Math.cos(rad) * len
+      const y1 = cy - Math.sin(rad) * len
+      const x2 = cx + Math.cos(rad) * len
+      const y2 = cy + Math.sin(rad) * len
+
+      this.correctionGuide = new fabric.Line([x1, y1, x2, y2], {
+        stroke: '#ff4d4f',
+        strokeWidth: 1,
+        strokeDashArray: [8, 4],
+        selectable: false,
+        evented: false
+      })
+      canvas.add(this.correctionGuide)
+      canvas.renderAll()
+    },
+
+    applyDeskew(angle) {
+      const canvas = this.fabricCanvas
+      if (!canvas || !this.currentImage) return
+      if (this.correctionGuide) { canvas.remove(this.correctionGuide); this.correctionGuide = null }
+
+      const dataUrl = canvas.toDataURL({ format: 'png', multiplier: 1 })
+      const img = new Image()
+      img.onload = () => {
+        const offCanvas = document.createElement('canvas')
+        offCanvas.width = img.width
+        offCanvas.height = img.height
+        const ctx = offCanvas.getContext('2d')
+        ctx.drawImage(img, 0, 0)
+        const imageData = ctx.getImageData(0, 0, img.width, img.height)
+
+        const result = createDeskewedImageData(imageData, angle)
+        const outCanvas = document.createElement('canvas')
+        outCanvas.width = result.width
+        outCanvas.height = result.height
+        const outCtx = outCanvas.getContext('2d')
+        outCtx.putImageData(result.imageData, 0, 0)
+
+        this.loadImage(outCanvas.toDataURL('image/png'))
+        this.$emit('deskewApplied')
+      }
+      img.src = dataUrl
+    },
+
+    // ==================== 去黑孔 ====================
+    clearDeblackOverlay() {
+      const canvas = this.fabricCanvas
+      if (!canvas) return
+      if (this.deblackPreviewOverlay) { canvas.remove(this.deblackPreviewOverlay); this.deblackPreviewOverlay = null }
+      this.deblackRects.forEach(r => canvas.remove(r))
+      this.deblackRects = []
+      canvas.renderAll()
+    },
+
+    clearDeblackSelection() {
+      const canvas = this.fabricCanvas
+      if (!canvas) return
+      if (this.deblackPreviewOverlay) { canvas.remove(this.deblackPreviewOverlay); this.deblackPreviewOverlay = null }
+      canvas.renderAll()
+      this.isDeblacking = false
+    },
+
+    onDeblackOverlayMouseDown(e) {
+      if (!this.fabricCanvas) return
+      const pointer = this.getCanvasPointer(e)
+      this.isDeblacking = true
+      this.deblackStartX = pointer.x
+      this.deblackStartY = pointer.y
+    },
+
+    onDeblackOverlayMouseMove(e) {
+      if (!this.isDeblacking || !this.fabricCanvas) return
+      const pointer = this.getCanvasPointer(e)
+      const canvas = this.fabricCanvas
+      if (this.deblackRects.length > 0) {
+        const last = this.deblackRects[this.deblackRects.length - 1]
+        canvas.remove(last)
+        this.deblackRects.pop()
+      }
+      const left = Math.min(this.deblackStartX, pointer.x)
+      const top = Math.min(this.deblackStartY, pointer.y)
+      const width = Math.abs(pointer.x - this.deblackStartX)
+      const height = Math.abs(pointer.y - this.deblackStartY)
+      const rect = new fabric.Rect({
+        left, top, width, height,
+        fill: 'rgba(255, 77, 79, 0.15)',
+        stroke: '#ff4d4f',
+        strokeWidth: 1,
+        selectable: false,
+        evented: false
+      })
+      this.deblackRects.push(rect)
+      canvas.add(rect)
+      canvas.renderAll()
+    },
+
+    onDeblackOverlayMouseUp() {
+      this.isDeblacking = false
+    },
+
+    previewDeblack(opts) {
+      const canvas = this.fabricCanvas
+      if (!canvas) return
+      this.clearDeblackOverlay()
+
+      const rawDataUrl = canvas.toDataURL({ format: 'png', multiplier: 2 })
+      const img = new Image()
+      img.onload = () => {
+        const offCanvas = document.createElement('canvas')
+        offCanvas.width = img.width
+        offCanvas.height = img.height
+        const ctx = offCanvas.getContext('2d')
+        ctx.drawImage(img, 0, 0)
+        const imageData = ctx.getImageData(0, 0, img.width, img.height)
+
+        let allPixels = []
+        const scaleFactor = img.width / canvas.getWidth()
+        const edgeRange = Math.round(LIMITS.DEBLACK_EDGE_RANGE * scaleFactor)
+        if (opts.edge) {
+          allPixels = allPixels.concat(detectBlackEdges(imageData, opts.sensitivity, edgeRange))
+        }
+        if (opts.hole) {
+          allPixels = allPixels.concat(detectBindingHoles(imageData, opts.sensitivity, edgeRange))
+        }
+
+        if (allPixels.length === 0) return
+
+        const fillColor = calculateFillColor(imageData, allPixels)
+        applyDeblackToImageData(imageData, allPixels, fillColor)
+        ctx.putImageData(imageData, 0, 0)
+
+        const processedUrl = offCanvas.toDataURL('image/png')
+        fabric.Image.fromURL(processedUrl, (previewImg) => {
+          previewImg.set({
+            left: 0, top: 0,
+            selectable: false, evented: false,
+            opacity: 0.5
+          })
+          previewImg.scaleToWidth(canvas.getWidth())
+          this.deblackPreviewOverlay = previewImg
+          canvas.add(this.deblackPreviewOverlay)
+          canvas.renderAll()
+        }, { crossOrigin: 'anonymous' })
+      }
+      img.src = rawDataUrl
+    },
+
+    applyDeblack(opts) {
+      const canvas = this.fabricCanvas
+      if (!canvas) return
+
+      const dataUrl = canvas.toDataURL({ format: 'png', multiplier: 2 })
+      const img = new Image()
+      img.onload = () => {
+        const offCanvas = document.createElement('canvas')
+        offCanvas.width = img.width
+        offCanvas.height = img.height
+        const ctx = offCanvas.getContext('2d')
+        ctx.drawImage(img, 0, 0)
+        const imageData = ctx.getImageData(0, 0, img.width, img.height)
+
+        let allPixels = []
+        const w = img.width
+        const scaleFactor = w / canvas.getWidth()
+        const edgeRange = Math.round(LIMITS.DEBLACK_EDGE_RANGE * scaleFactor)
+        if (opts.edge) {
+          allPixels = allPixels.concat(detectBlackEdges(imageData, opts.sensitivity, edgeRange))
+        }
+        if (opts.hole) {
+          allPixels = allPixels.concat(detectBindingHoles(imageData, opts.sensitivity, edgeRange))
+        }
+
+        // 添加手动框选区
+        const vpt = canvas.viewportTransform
+        this.deblackRects.forEach(rect => {
+          const rLeft = Math.round((rect.left * vpt[0] + vpt[4]) * scaleFactor)
+          const rTop = Math.round((rect.top * vpt[3] + vpt[5]) * scaleFactor)
+          const rWidth = Math.round(rect.getScaledWidth() * vpt[0] * scaleFactor)
+          const rHeight = Math.round(rect.getScaledHeight() * vpt[3] * scaleFactor)
+          for (let y = rTop; y < rTop + rHeight; y++) {
+            for (let x = rLeft; x < rLeft + rWidth; x++) {
+              if (x >= 0 && x < w && y >= 0 && y < img.height) {
+                allPixels.push({ x, y })
+              }
+            }
+          }
+        })
+
+        if (allPixels.length === 0) { this.$emit('deblackApplied'); return }
+
+        let fillColor = opts.fillColor
+        if (fillColor.startsWith('#')) {
+          const r = parseInt(fillColor.slice(1, 3), 16)
+          const g = parseInt(fillColor.slice(3, 5), 16)
+          const b = parseInt(fillColor.slice(5, 7), 16)
+          fillColor = { r, g, b }
+        } else {
+          fillColor = calculateFillColor(imageData, allPixels)
+        }
+        applyDeblackToImageData(imageData, allPixels, fillColor)
+        ctx.putImageData(imageData, 0, 0)
+
+        this.clearDeblackOverlay()
+        this.loadImage(offCanvas.toDataURL('image/png'))
+        this.$emit('deblackApplied')
+      }
+      img.src = dataUrl
+    },
+
+    cancelDeblack() {
+      this.clearDeblackOverlay()
+      this.clearDeblackSelection()
+    },
+
+    // ==================== 色彩调整 ====================
+    applyColorFilter(filterStr) {
+      const el = this.$refs.canvasContainer
+      if (el) {
+        el.style.filter = filterStr
+      }
+    },
+
+    bakeColorFilter() {
+      const canvas = this.fabricCanvas
+      if (!canvas || !this.currentImage) return
+      const container = this.$refs.canvasContainer
+      const filterStr = container ? container.style.filter : ''
+      if (!filterStr || filterStr === 'none') return
+
+      const el = canvas.lowerCanvasEl
+      const offCanvas = document.createElement('canvas')
+      offCanvas.width = el.width
+      offCanvas.height = el.height
+      const ctx = offCanvas.getContext('2d')
+      ctx.filter = filterStr
+      ctx.drawImage(el, 0, 0)
+
+      this.loadImage(offCanvas.toDataURL('image/png'))
     },
 
     // ==================== Fabric.js 事件（非裁剪模式用） ====================
