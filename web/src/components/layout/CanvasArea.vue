@@ -8,7 +8,7 @@
     @drop.prevent="handleDrop"
     ref="canvasContainer"
   >
-    <!-- 绌虹姸鎬佸紩瀵?-->
+    <!-- 空状态引导 -->
     <div v-if="!hasActiveFile" class="canvas-empty">
       <div class="empty-guide">
         <svg class="empty-icon" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -16,20 +16,20 @@
           <circle cx="28" cy="24" r="6" />
           <path d="M8 44l12-10 8 6 12-10 16 14" />
         </svg>
-        <p class="empty-title">鎷栨嫿鍥剧墖鍒版澶勬墦寮€</p>
-        <p class="empty-desc">鏀寔 JPG銆丣PEG銆丳NG 鏍煎紡锛屾渶澶?50MB</p>
-        <button class="empty-btn" @click.stop="$emit('action', 'openFile')">閫夋嫨鏂囦欢</button>
+        <p class="empty-title">拖拽图片到此处打开</p>
+        <p class="empty-desc">支持 JPG、JPEG、PNG 格式，最大 50MB</p>
+        <button class="empty-btn" @click.stop="$emit('action', 'openFile')">选择文件</button>
       </div>
     </div>
 
-    <!-- Fabric.js 鐢诲竷 -->
+    <!-- Fabric.js 画布 -->
     <canvas
       v-show="hasActiveFile"
       ref="fabricCanvas"
       class="fabric-canvas"
     ></canvas>
 
-    <!-- 瑁佸壀妯″紡 HTML overlay锛氭嫤鎴墍鏈夐紶鏍囦簨浠讹紝缁曡繃 Fabric.js 浜嬩欢绯荤粺 -->
+    <!-- 裁剪模式 HTML overlay：拦截所有鼠标事件，绕过 Fabric.js 事件系统 -->
     <div
       v-if="hasActiveFile && interactionMode === 'crop'"
       class="crop-overlay"
@@ -40,10 +40,10 @@
       @dblclick.prevent="onCropDblClick"
     ></div>
 
-    <!-- 鍔犺浇閬僵 -->
+    <!-- 加载遮罩 -->
     <div v-if="loading" class="canvas-loading">
       <div class="loading-spinner"></div>
-      <span>鍔犺浇涓?..</span>
+      <span>加载中...</span>
     </div>
   </div>
 </template>
@@ -158,7 +158,7 @@ export default {
       return this.fabricCanvas.getPointer({ clientX: e.clientX, clientY: e.clientY })
     },
 
-    // ==================== 浜や簰妯″紡 ====================
+    // ==================== 交互模式 ====================
     exitOldMode(mode) {
       if (mode === 'crop') {
         this.clearCropUI()
@@ -225,7 +225,7 @@ export default {
       if (!canvas) return
       this.clearCropUI()
 
-      // 浣跨敤 vpt 璁＄畻褰撳墠瑙嗗彛鑼冨洿锛岀簿纭鐩栧彲瑙佸尯鍩燂紝閬垮厤鍥剧墖婕傜Щ
+      // 使用 vpt 计算当前视口范围，精确覆盖可见区域，避免图片漂移
       const vpt = canvas.viewportTransform
       const cw = canvas.getWidth()
       const ch = canvas.getHeight()
@@ -243,7 +243,7 @@ export default {
       canvas.add(this.cropMask)
     },
 
-    // ==================== 鍥剧墖鍔犺浇 ====================
+    // ==================== 图片加载 ====================
     loadImage(dataUrl) {
       if (!this.fabricCanvas) {
         this.$nextTick(() => {
@@ -277,7 +277,7 @@ export default {
       })
     },
 
-    // ==================== 缂╂斁 ====================
+    // ==================== 缩放 ====================
     doZoomIn() {
       return this.applyZoom(this.getCurrentZoom() + LIMITS.ZOOM_STEP)
     },
@@ -327,11 +327,11 @@ export default {
     rotateObject(angleDelta) {
       const obj = this.currentImage
       if (!obj) return
-      this.$emit('beforeOperation', { label: '鏃嬭浆', type: 'rotate' })
+      this.$emit('beforeOperation', { label: '旋转', type: 'rotate' })
       obj.rotate(obj.angle + angleDelta)
       obj.setCoords()
       this.fabricCanvas.renderAll()
-      this.$emit('operationRecorded', { label: '鏃嬭浆 ' + angleDelta + '掳', type: 'rotate' })
+      this.$emit('operationRecorded', { label: '旋转 ' + angleDelta + '°', type: 'rotate' })
     },
     rotateToAngle(angle) {
       const obj = this.currentImage
@@ -345,11 +345,11 @@ export default {
     doFlip(flipX, flipY) {
       const obj = this.currentImage
       if (!obj) return
-      this.$emit('beforeOperation', { label: flipX ? '姘村钩缈昏浆' : '鍨傜洿缈昏浆', type: 'flip' })
+      this.$emit('beforeOperation', { label: flipX ? '水平翻转' : '垂直翻转', type: 'flip' })
       obj.set({ flipX: !obj.flipX, flipY: !obj.flipY })
       obj.setCoords()
       this.fabricCanvas.renderAll()
-      this.$emit('operationRecorded', { label: flipX ? '姘村钩缈昏浆' : '鍨傜洿缈昏浆', type: 'flip' })
+      this.$emit('operationRecorded', { label: flipX ? '水平翻转' : '垂直翻转', type: 'flip' })
     },
 
     // ==================== 裁剪 - HTML overlay 事件处理 ====================
@@ -359,7 +359,7 @@ export default {
       this.isCropping = true
       this.cropStartX = pointer.x
       this.cropStartY = pointer.y
-      // 娓呴櫎鏃ц鍓
+      // 清除旧裁剪框
       if (this.cropRect) {
         this.fabricCanvas.remove(this.cropRect)
         this.cropRect = null
@@ -403,7 +403,7 @@ export default {
       let width = Math.abs(x2 - x1)
       let height = Math.abs(y2 - y1)
 
-      // 鍥哄畾姣斾緥绾︽潫
+      // 固定比例约束
       if (this.cropMode === 'ratio' && this.cropRatio) {
         const [rw, rh] = this.cropRatio.split(':').map(Number)
         const ratio = rw / rh
@@ -456,13 +456,13 @@ export default {
       const cropWidth = rect.getScaledWidth()
       const cropHeight = rect.getScaledHeight()
 
-      // 鍏堟竻闄ら伄缃╋紝闇插嚭骞插噣鍘熷浘
+      // 先清除遮罩，露出干净原图
       this.clearCropUI()
 
-      // 淇濆瓨骞插噣鐘舵€佺敤浜庢挙閿€
-      this.$emit('beforeOperation', { label: '瑁佸壀', type: 'crop' })
+      // 保存干净状态用于撤销
+      this.$emit('beforeOperation', { label: '裁剪', type: 'crop' })
 
-      // 鎻愬彇瑁佸壀鍖哄煙
+      // 提取裁剪区域
       const dataUrl = canvas.toDataURL({
         format: 'png',
         left: cropLeft, top: cropTop,
@@ -472,7 +472,7 @@ export default {
       // 恢复并加载裁剪结果
       this.loadImage(dataUrl)
       this.cropApplied = true
-      this.$emit('operationRecorded', { label: '瑁佸壀', type: 'crop' })
+      this.$emit('operationRecorded', { label: '裁剪', type: 'crop' })
       this.$emit('cropComplete')
     },
 
@@ -492,7 +492,7 @@ export default {
       canvas.renderAll()
     },
 
-    // ==================== Fabric.js 浜嬩欢锛堥潪瑁佸壀妯″紡鐢級 ====================
+    // ==================== Fabric.js 事件（非裁剪模式用） ====================
     onFabricMouseMove(opt) {
       const pointer = this.fabricCanvas.getPointer(opt.e)
       this.$emit('mouseMoved', { x: pointer.x, y: pointer.y })
@@ -536,7 +536,7 @@ export default {
       this.$emit('zoomChanged', Math.round(clamped * 100))
     },
 
-    // ==================== 澶栭儴璋冪敤 ====================
+    // ==================== 外部调用 ====================
     getCanvasJSON() {
       return this.fabricCanvas ? JSON.stringify(this.fabricCanvas.toJSON()) : null
     },
@@ -559,7 +559,7 @@ export default {
       return this.fabricCanvas.toDataURL({ format, quality, multiplier: 1 })
     },
 
-    // ==================== 鎷栨嫿涓婁紶 ====================
+    // ==================== 拖拽上传 ====================
     handleDragOver(e) {
       this.isDragOver = true
       e.dataTransfer.dropEffect = 'copy'
