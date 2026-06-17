@@ -577,12 +577,20 @@ export default {
       if (this.correctionGuide) { canvas.remove(this.correctionGuide); this.correctionGuide = null }
 
       const img = this.currentImage
-      const prevBg = canvas.backgroundColor
-      canvas.backgroundColor = '#ffffff'
       img.rotate(img.angle + angle)
       img.setCoords()
-      canvas.renderAll()
-      canvas.backgroundColor = prevBg
+
+      const cw = canvas.getWidth()
+      const ch = canvas.getHeight()
+      const offCanvas = document.createElement('canvas')
+      offCanvas.width = cw
+      offCanvas.height = ch
+      const ctx = offCanvas.getContext('2d')
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(0, 0, cw, ch)
+      ctx.drawImage(canvas.lowerCanvasEl, 0, 0)
+
+      this.loadImage(offCanvas.toDataURL('image/png'))
       this.$emit('deskewApplied')
     },
 

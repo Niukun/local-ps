@@ -90,7 +90,7 @@
             <label class="props-label">检测角度</label>
             <span class="props-value">{{ correctionAngle.toFixed(1) }}°</span>
             <label class="props-label">灵敏度</label>
-            <input v-model.number="correctionSensitivity" type="range" class="props-range" min="1" max="10" step="1" @input="onCorrectionSensitivityChange" />
+            <input :value="correctionSensitivity" type="range" class="props-range" min="1" max="10" step="1" @input="onCorrectionSensitivityInput" />
             <span class="props-value">{{ correctionSensitivity }}</span>
             <label class="props-label">微调</label>
             <button class="props-btn" @click="adjustCorrectionAngle(-1)">-1°</button>
@@ -103,14 +103,14 @@
           <!-- ===== 去黑孔参数 ===== -->
           <template v-if="activeTool === 'deblack'">
             <label class="props-label">模式</label>
-            <label class="props-check"><input type="checkbox" v-model="deblackEdge" @change="onDeblackParamChange" />去黑边</label>
-            <label class="props-check"><input type="checkbox" v-model="deblackHole" @change="onDeblackParamChange" />去装订孔</label>
+            <label class="props-check"><input type="checkbox" :checked="deblackEdge" @change="onDeblackEdgeChange" />去黑边</label>
+            <label class="props-check"><input type="checkbox" :checked="deblackHole" @change="onDeblackHoleChange" />去装订孔</label>
             <label class="props-label">灵敏度</label>
-            <input v-model.number="deblackSensitivity" type="range" class="props-range" min="1" max="10" step="1" @input="onDeblackParamChange" />
+            <input :value="deblackSensitivity" type="range" class="props-range" min="1" max="10" step="1" @input="onDeblackSensitivityInput" />
             <span class="props-value">{{ deblackSensitivity }}</span>
             <label class="props-label">填充色</label>
-            <input type="color" v-model="deblackFillColor" class="props-color" @input="onDeblackParamChange" />
-            <label class="props-check"><input type="checkbox" v-model="deblackManual" @change="onDeblackManualChange" />手动框选</label>
+            <input type="color" :value="deblackFillColor" class="props-color" @input="onDeblackFillColorInput" />
+            <label class="props-check"><input type="checkbox" :checked="deblackManual" @change="onDeblackManualToggle" />手动框选</label>
             <button class="props-btn" @click="previewDeblack">预览</button>
             <button class="props-btn props-btn-apply" @click="applyDeblack">应用</button>
             <button class="props-btn" @click="cancelDeblack">取消</button>
@@ -119,17 +119,17 @@
           <!-- ===== 色彩调整参数 ===== -->
           <template v-if="activeTool === 'colorAdjust'">
             <label class="props-label">亮度</label>
-            <input v-model.number="colorBrightness" type="range" class="props-range" min="-100" max="100" step="1" @input="onColorParamChange" />
-            <input v-model.number="colorBrightness" type="number" class="props-input props-input-num" min="-100" max="100" @input="onColorParamChange" />
+            <input :value="colorBrightness" type="range" class="props-range" min="-100" max="100" step="1" @input="onBrightnessInput" />
+            <input :value="colorBrightness" type="number" class="props-input props-input-num" min="-100" max="100" @input="onBrightnessInput" />
             <label class="props-label">对比度</label>
-            <input v-model.number="colorContrast" type="range" class="props-range" min="-100" max="100" step="1" @input="onColorParamChange" />
-            <input v-model.number="colorContrast" type="number" class="props-input props-input-num" min="-100" max="100" @input="onColorParamChange" />
+            <input :value="colorContrast" type="range" class="props-range" min="-100" max="100" step="1" @input="onContrastInput" />
+            <input :value="colorContrast" type="number" class="props-input props-input-num" min="-100" max="100" @input="onContrastInput" />
             <label class="props-label">饱和度</label>
-            <input v-model.number="colorSaturation" type="range" class="props-range" min="-100" max="100" step="1" @input="onColorParamChange" />
-            <input v-model.number="colorSaturation" type="number" class="props-input props-input-num" min="-100" max="100" @input="onColorParamChange" />
+            <input :value="colorSaturation" type="range" class="props-range" min="-100" max="100" step="1" @input="onSaturationInput" />
+            <input :value="colorSaturation" type="number" class="props-input props-input-num" min="-100" max="100" @input="onSaturationInput" />
             <label class="props-label">色温</label>
-            <input v-model.number="colorTemperature" type="range" class="props-range" min="-100" max="100" step="1" @input="onColorParamChange" />
-            <input v-model.number="colorTemperature" type="number" class="props-input props-input-num" min="-100" max="100" @input="onColorParamChange" />
+            <input :value="colorTemperature" type="range" class="props-range" min="-100" max="100" step="1" @input="onTemperatureInput" />
+            <input :value="colorTemperature" type="number" class="props-input props-input-num" min="-100" max="100" @input="onTemperatureInput" />
             <button class="props-btn" @click="resetColorAdjust">重置</button>
           </template>
         </div>
@@ -514,7 +514,13 @@ export default {
     },
 
     // ===== 纠偏 =====
-    onCorrectionSensitivityChange() {
+    onCorrectionSensitivityInput(e) {
+      const val = Number(e.target.value)
+      this.SET_CORRECTION_SENSITIVITY(val)
+      this.$nextTick(() => this.runSkewDetection())
+    },
+
+    runSkewDetection() {
       this.SET_CORRECTION_SENSITIVITY(this.correctionSensitivity)
       const canvasArea = this.$refs.canvasArea
       if (!canvasArea || !canvasArea.fabricCanvas) return
@@ -559,15 +565,25 @@ export default {
     },
 
     // ===== 去黑孔 =====
-    onDeblackParamChange() {
-      this.SET_DEBLACK_EDGE(this.deblackEdge)
-      this.SET_DEBLACK_HOLE(this.deblackHole)
-      this.SET_DEBLACK_SENSITIVITY(this.deblackSensitivity)
-      this.SET_DEBLACK_FILL_COLOR(this.deblackFillColor)
+    onDeblackEdgeChange(e) {
+      this.SET_DEBLACK_EDGE(e.target.checked)
     },
 
-    onDeblackManualChange() {
-      this.SET_DEBLACK_MANUAL(this.deblackManual)
+    onDeblackHoleChange(e) {
+      this.SET_DEBLACK_HOLE(e.target.checked)
+    },
+
+    onDeblackSensitivityInput(e) {
+      const val = Number(e.target.value)
+      this.SET_DEBLACK_SENSITIVITY(val)
+    },
+
+    onDeblackFillColorInput(e) {
+      this.SET_DEBLACK_FILL_COLOR(e.target.value)
+    },
+
+    onDeblackManualToggle(e) {
+      this.SET_DEBLACK_MANUAL(e.target.checked)
     },
 
     previewDeblack() {
@@ -607,7 +623,31 @@ export default {
     },
 
     // ===== 色彩调整 =====
-    onColorParamChange() {
+    onBrightnessInput(e) {
+      const val = Number(e.target.value)
+      this.SET_COLOR_BRIGHTNESS(val)
+      this.applyColorFilterToCanvas()
+    },
+
+    onContrastInput(e) {
+      const val = Number(e.target.value)
+      this.SET_COLOR_CONTRAST(val)
+      this.applyColorFilterToCanvas()
+    },
+
+    onSaturationInput(e) {
+      const val = Number(e.target.value)
+      this.SET_COLOR_SATURATION(val)
+      this.applyColorFilterToCanvas()
+    },
+
+    onTemperatureInput(e) {
+      const val = Number(e.target.value)
+      this.SET_COLOR_TEMPERATURE(val)
+      this.applyColorFilterToCanvas()
+    },
+
+    applyColorFilterToCanvas() {
       this.SET_COLOR_BRIGHTNESS(this.colorBrightness)
       this.SET_COLOR_CONTRAST(this.colorContrast)
       this.SET_COLOR_SATURATION(this.colorSaturation)
@@ -690,10 +730,10 @@ export default {
       if (tool === 'crop') {
         this.$nextTick(() => canvasArea.startCrop())
       } else if (tool === 'correction') {
-        this.$nextTick(() => this.onCorrectionSensitivityChange())
+        this.$nextTick(() => this.runSkewDetection())
       } else if (tool === 'colorAdjust') {
         this.SET_CORRECTION_ANGLE(0)
-        this.$nextTick(() => this.onColorParamChange())
+        this.$nextTick(() => this.applyColorFilterToCanvas())
       } else if (tool === 'deblack') {
         this.$nextTick(() => canvasArea.clearDeblackOverlay())
       } else {
