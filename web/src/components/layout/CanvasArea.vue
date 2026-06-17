@@ -52,7 +52,6 @@
 import { fabric } from 'fabric'
 import { LIMITS } from '@/utils/constants'
 import { detectBlackEdges, detectBindingHoles, calculateFillColor, applyDeblack as applyDeblackToImageData } from '@/utils/deblackUtils'
-import { detectSkewAngle, createDeskewedImageData } from '@/utils/deskewUtils'
 
 export default {
   name: 'CanvasArea',
@@ -577,27 +576,14 @@ export default {
       if (!canvas || !this.currentImage) return
       if (this.correctionGuide) { canvas.remove(this.correctionGuide); this.correctionGuide = null }
 
-      const dataUrl = canvas.toDataURL({ format: 'png', multiplier: 1 })
-      const img = new Image()
-      img.onload = () => {
-        const offCanvas = document.createElement('canvas')
-        offCanvas.width = img.width
-        offCanvas.height = img.height
-        const ctx = offCanvas.getContext('2d')
-        ctx.drawImage(img, 0, 0)
-        const imageData = ctx.getImageData(0, 0, img.width, img.height)
-
-        const result = createDeskewedImageData(imageData, angle)
-        const outCanvas = document.createElement('canvas')
-        outCanvas.width = result.width
-        outCanvas.height = result.height
-        const outCtx = outCanvas.getContext('2d')
-        outCtx.putImageData(result.imageData, 0, 0)
-
-        this.loadImage(outCanvas.toDataURL('image/png'))
-        this.$emit('deskewApplied')
-      }
-      img.src = dataUrl
+      const img = this.currentImage
+      const prevBg = canvas.backgroundColor
+      canvas.backgroundColor = '#ffffff'
+      img.rotate(img.angle + angle)
+      img.setCoords()
+      canvas.renderAll()
+      canvas.backgroundColor = prevBg
+      this.$emit('deskewApplied')
     },
 
     // ==================== 去黑孔 ====================

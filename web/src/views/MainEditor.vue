@@ -437,12 +437,22 @@ export default {
       const canvasArea = this.$refs.canvasArea
       if (!canvasArea) return
       canvasArea.rotateLeft()
+      this.syncRotateInput()
     },
 
     rotateRight90() {
       const canvasArea = this.$refs.canvasArea
       if (!canvasArea) return
       canvasArea.rotateRight()
+      this.syncRotateInput()
+    },
+
+    syncRotateInput() {
+      const canvasArea = this.$refs.canvasArea
+      if (canvasArea && canvasArea.currentImage) {
+        const angle = canvasArea.currentImage.angle
+        this.rotateAngleInput = Math.round(angle % 360)
+      }
     },
 
     flipH() {
