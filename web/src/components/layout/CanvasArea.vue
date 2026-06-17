@@ -762,7 +762,9 @@ export default {
 
     // ==================== 色彩调整 ====================
     applyColorFilter(filterStr) {
-      const el = this.$refs.canvasContainer
+      const canvas = this.fabricCanvas
+      if (!canvas) return
+      const el = canvas.wrapperEl || canvas.lowerCanvasEl
       if (el) {
         el.style.filter = filterStr
       }
@@ -771,8 +773,8 @@ export default {
     bakeColorFilter() {
       const canvas = this.fabricCanvas
       if (!canvas || !this.currentImage) return
-      const container = this.$refs.canvasContainer
-      const filterStr = container ? container.style.filter : ''
+      const wrapperEl = canvas.wrapperEl
+      const filterStr = wrapperEl ? wrapperEl.style.filter : ''
       if (!filterStr || filterStr === 'none') return
 
       const el = canvas.lowerCanvasEl
@@ -784,6 +786,7 @@ export default {
       ctx.drawImage(el, 0, 0)
 
       this.loadImage(offCanvas.toDataURL('image/png'))
+      if (wrapperEl) wrapperEl.style.filter = ''
     },
 
     // ==================== Fabric.js 事件（非裁剪模式用） ====================

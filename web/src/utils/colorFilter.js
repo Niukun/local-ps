@@ -17,8 +17,12 @@ function buildFilterString(params) {
   if (saturation !== 0) {
     parts.push(`saturate(${100 + saturation}%)`)
   }
-  if (temperature !== 0) {
-    parts.push(`sepia(0.5) saturate(2) hue-rotate(${temperature * 0.4}deg)`)
+  if (temperature > 0) {
+    const t = temperature / 100
+    parts.push(`sepia(${t * 0.5})`)
+  } else if (temperature < 0) {
+    const t = -temperature / 100
+    parts.push(`hue-rotate(${-t * 40}deg) saturate(${1 - t * 0.3})`)
   }
 
   return parts.join(' ')
