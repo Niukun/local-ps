@@ -577,20 +577,16 @@ export default {
       if (this.correctionGuide) { canvas.remove(this.correctionGuide); this.correctionGuide = null }
 
       const img = this.currentImage
+      const prevBg = canvas.backgroundColor
+      canvas.backgroundColor = '#ffffff'
       img.rotate(img.angle + angle)
       img.setCoords()
+      canvas.renderAll()
 
-      const cw = canvas.getWidth()
-      const ch = canvas.getHeight()
-      const offCanvas = document.createElement('canvas')
-      offCanvas.width = cw
-      offCanvas.height = ch
-      const ctx = offCanvas.getContext('2d')
-      ctx.fillStyle = '#ffffff'
-      ctx.fillRect(0, 0, cw, ch)
-      ctx.drawImage(canvas.lowerCanvasEl, 0, 0)
-
-      this.loadImage(offCanvas.toDataURL('image/png'))
+      const dataUrl = canvas.toDataURL({ format: 'png', multiplier: 1 })
+      canvas.backgroundColor = prevBg
+      canvas.renderAll()
+      this.loadImage(dataUrl)
       this.$emit('deskewApplied')
     },
 
@@ -655,7 +651,7 @@ export default {
       if (!canvas) return
       this.clearDeblackOverlay()
 
-      const rawDataUrl = canvas.toDataURL({ format: 'png', multiplier: 2 })
+      const rawDataUrl = canvas.toDataURL({ format: 'png', multiplier: 1 })
       const img = new Image()
       img.onload = () => {
         const offCanvas = document.createElement('canvas')
@@ -677,8 +673,8 @@ export default {
 
         if (allPixels.length === 0) return
 
-        const fillColor = calculateFillColor(imageData, allPixels)
-        applyDeblackToImageData(imageData, allPixels, fillColor)
+        const highlightColor = { r: 255, g: 77, b: 79 }
+        applyDeblackToImageData(imageData, allPixels, highlightColor)
         ctx.putImageData(imageData, 0, 0)
 
         const processedUrl = offCanvas.toDataURL('image/png')

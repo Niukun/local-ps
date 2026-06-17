@@ -60,7 +60,7 @@ export function detectBlackEdges(imageData, sensitivity, edgeRange) {
   if (sensitivity === undefined) sensitivity = 5;
   if (edgeRange === undefined) edgeRange = 50;
 
-  const threshold = 255 - sensitivity * 20;
+  const threshold = sensitivity * 15 + 15;
   const darkSet = buildDarkSet(imageData, threshold, edgeRange);
 
   const result = [];
@@ -77,7 +77,7 @@ export function detectBindingHoles(imageData, sensitivity, edgeRange) {
   if (edgeRange === undefined) edgeRange = 50;
 
   const { width, height } = imageData;
-  const threshold = 255 - sensitivity * 20;
+  const threshold = sensitivity * 15 + 15;
   const darkSet = buildDarkSet(imageData, threshold, edgeRange);
 
   const visited = new Set();
