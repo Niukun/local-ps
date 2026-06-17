@@ -1,6 +1,6 @@
 ---
 name: bug-fix
-description: "项目中 Bug 修复专用技能：充分理解问题 → Code Review 定位根因 → 输出分析方案 → 确认后执行 → 不提交 git"
+description: "项目中 Bug 修复专用技能：当用户提到 bug、发现问题、报错、异常、行为不符合预期时调用。工作流：理解问题 → Code Review 定位根因 → 输出分析方案 → 确认后执行 → 不提交 git"
 ---
 
 # Bug 修复工作流

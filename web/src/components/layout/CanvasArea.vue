@@ -579,7 +579,7 @@ export default {
       const img = this.currentImage
       const prevBg = canvas.backgroundColor
       canvas.backgroundColor = '#ffffff'
-      img.rotate(img.angle + angle)
+      img.rotate(img.angle - angle)
       img.setCoords()
       canvas.renderAll()
 
