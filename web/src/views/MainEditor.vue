@@ -345,23 +345,21 @@ export default {
 
     // ===== 撤销/恢复 =====
     handleBeforeOperation({ label, type }) {
-      // 操作前保存当前状态
+      this._operationPending = true
+    },
+
+    handleOperationRecorded({ label, type }) {
+      if (!this._operationPending) return
+      this._operationPending = false
       const canvasArea = this.$refs.canvasArea
       if (!canvasArea) return
       const json = canvasArea.getCanvasJSON()
       if (json) {
-        this._pendingState = json
-      }
-    },
-
-    handleOperationRecorded({ label, type }) {
-      if (this._pendingState) {
         this.recordOperation({
           label,
           type,
-          canvasJSON: this._pendingState
+          canvasJSON: json
         })
-        this._pendingState = null
       }
     },
 
@@ -374,13 +372,12 @@ export default {
       this.undo()
       setTimeout(() => {
         const newStack = this.$store.getters['history/currentStack']
-        if (newStack && newStack.pointer < newStack.stack.length) {
-          const state = newStack.stack[newStack.pointer]
+        if (newStack && newStack.pointer > 0) {
+          const state = newStack.stack[newStack.pointer - 1]
           if (state && state.canvasJSON) {
             this.$refs.canvasArea.loadCanvasJSON(state.canvasJSON)
           }
         } else if (newStack && newStack.pointer === 0) {
-          // 回到初始状态：重新加载原图
           if (this.activeFile && this.activeFile.dataUrl) {
             this.$refs.canvasArea.loadImage(this.activeFile.dataUrl)
           }
@@ -439,17 +436,13 @@ export default {
     rotateLeft90() {
       const canvasArea = this.$refs.canvasArea
       if (!canvasArea) return
-      this.handleBeforeOperation({ label: '左旋90°', type: 'rotate' })
       canvasArea.rotateLeft()
-      this.handleOperationRecorded({ label: '左旋90°', type: 'rotate' })
     },
 
     rotateRight90() {
       const canvasArea = this.$refs.canvasArea
       if (!canvasArea) return
-      this.handleBeforeOperation({ label: '右旋90°', type: 'rotate' })
       canvasArea.rotateRight()
-      this.handleOperationRecorded({ label: '右旋90°', type: 'rotate' })
     },
 
     flipH() {
